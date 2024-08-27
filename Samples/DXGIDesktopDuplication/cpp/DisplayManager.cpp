@@ -6,6 +6,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved
 
 #include "DisplayManager.h"
+#include "AdvancedColorTonemapper.h"
 using namespace DirectX;
 
 //
@@ -33,7 +34,7 @@ DisplayManager::~DisplayManager()
 //
 // Initialize D3D variables
 //
-void DisplayManager::InitD3D(DxResources* Data)
+void DisplayManager::InitD3D(DxResources* Data, const DXGI_OUTPUT_DESC1& DesktopDesc)
 {
     m_Device = Data->Device;
     m_DeviceContext = Data->Context;
@@ -41,12 +42,14 @@ void DisplayManager::InitD3D(DxResources* Data)
     m_PixelShader = Data->PixelShader;
     m_InputLayout = Data->InputLayout;
     m_SamplerLinear = Data->SamplerLinear;
+
+    m_Tonemapper = std::make_unique<AdvancedColorTonemapper>(DesktopDesc, m_Device);
 }
 
 //
 // Process a given frame and its metadata
 //
-DUPL_RETURN DisplayManager::ProcessFrame(_In_ FrameData* Data, _Inout_ ID3D11Texture2D* SharedSurf, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC* DeskDesc)
+DUPL_RETURN DisplayManager::ProcessFrame(_In_ FrameData* Data, _Inout_ ID3D11Texture2D* SharedSurf, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC1* DeskDesc)
 {
     DUPL_RETURN Ret = DUPL_RETURN_SUCCESS;
 
@@ -58,7 +61,7 @@ DUPL_RETURN DisplayManager::ProcessFrame(_In_ FrameData* Data, _Inout_ ID3D11Tex
 
         if (Data->MoveCount)
         {
-            Ret = CopyMove(SharedSurf, reinterpret_cast<DXGI_OUTDUPL_MOVE_RECT*>(Data->MetaData), Data->MoveCount, OffsetX, OffsetY, DeskDesc, Desc.Width, Desc.Height);
+            Ret = CopyMove(SharedSurf, std::span<DXGI_OUTDUPL_MOVE_RECT>(reinterpret_cast<DXGI_OUTDUPL_MOVE_RECT*>(Data->MetaData), Data->MoveCount), OffsetX, OffsetY, DeskDesc, Desc.Width, Desc.Height);
             if (Ret != DUPL_RETURN_SUCCESS)
             {
                 return Ret;
@@ -67,7 +70,17 @@ DUPL_RETURN DisplayManager::ProcessFrame(_In_ FrameData* Data, _Inout_ ID3D11Tex
 
         if (Data->DirtyCount)
         {
-            Ret = CopyDirty(Data->Frame, SharedSurf, reinterpret_cast<RECT*>(Data->MetaData + (Data->MoveCount * sizeof(DXGI_OUTDUPL_MOVE_RECT))), Data->DirtyCount, OffsetX, OffsetY, DeskDesc);
+            std::span<RECT> DirtyRects(reinterpret_cast<RECT*>(Data->MetaData + (Data->MoveCount * sizeof(DXGI_OUTDUPL_MOVE_RECT))), Data->DirtyCount);
+
+            if ((DeskDesc->ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020) || (Desc.Format == DXGI_FORMAT_R16G16B16A16_FLOAT))
+            {
+                // For HDR outputs, tonemap the screen image to SDR while copying the dirty rects
+                Ret = m_Tonemapper->CopyDirtyWithTonemapping(Data->Frame, SharedSurf, DirtyRects, OffsetX, OffsetY, DeskDesc);
+            }
+            else
+            {
+                Ret = CopyDirty(Data->Frame, SharedSurf, DirtyRects, OffsetX, OffsetY, DeskDesc);
+            }
         }
     }
 
@@ -85,7 +98,7 @@ ID3D11Device* DisplayManager::GetDevice()
 //
 // Set appropriate source and destination rects for move rects
 //
-void DisplayManager::SetMoveRect(_Out_ RECT* SrcRect, _Out_ RECT* DestRect, _In_ DXGI_OUTPUT_DESC* DeskDesc, _In_ DXGI_OUTDUPL_MOVE_RECT* MoveRect, INT TexWidth, INT TexHeight)
+void DisplayManager::SetMoveRect(_Out_ RECT* SrcRect, _Out_ RECT* DestRect, _In_ DXGI_OUTPUT_DESC1* DeskDesc, _In_ DXGI_OUTDUPL_MOVE_RECT* MoveRect, INT TexWidth, INT TexHeight)
 {
     switch (DeskDesc->Rotation)
     {
@@ -151,7 +164,7 @@ void DisplayManager::SetMoveRect(_Out_ RECT* SrcRect, _Out_ RECT* DestRect, _In_
 //
 // Copy move rectangles
 //
-DUPL_RETURN DisplayManager::CopyMove(_Inout_ ID3D11Texture2D* SharedSurf, _In_reads_(MoveCount) DXGI_OUTDUPL_MOVE_RECT* MoveBuffer, UINT MoveCount, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC* DeskDesc, INT TexWidth, INT TexHeight)
+DUPL_RETURN DisplayManager::CopyMove(_Inout_ ID3D11Texture2D* SharedSurf, std::span<DXGI_OUTDUPL_MOVE_RECT> MoveRects, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC1* DeskDesc, INT TexWidth, INT TexHeight)
 {
     D3D11_TEXTURE2D_DESC FullDesc;
     SharedSurf->GetDesc(&FullDesc);
@@ -171,12 +184,12 @@ DUPL_RETURN DisplayManager::CopyMove(_Inout_ ID3D11Texture2D* SharedSurf, _In_re
         }
     }
 
-    for (UINT i = 0; i < MoveCount; ++i)
+    for (UINT i = 0; i < MoveRects.size(); ++i)
     {
         RECT SrcRect;
         RECT DestRect;
 
-        SetMoveRect(&SrcRect, &DestRect, DeskDesc, &(MoveBuffer[i]), TexWidth, TexHeight);
+        SetMoveRect(&SrcRect, &DestRect, DeskDesc, &(MoveRects[i]), TexWidth, TexHeight);
 
         // Copy rect out of shared surface
         D3D11_BOX Box = {};
@@ -207,7 +220,7 @@ DUPL_RETURN DisplayManager::CopyMove(_Inout_ ID3D11Texture2D* SharedSurf, _In_re
 #pragma warning(push)
 #pragma warning(disable:__WARNING_USING_UNINIT_VAR) // false positives in SetDirtyVert due to tool bug
 
-void DisplayManager::SetDirtyVert(_Out_writes_(NUMVERTICES) Vertex* Vertices, _In_ RECT* Dirty, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC* DeskDesc, _In_ D3D11_TEXTURE2D_DESC* FullDesc, _In_ D3D11_TEXTURE2D_DESC* ThisDesc)
+void DisplayManager::SetDirtyVert(_Out_writes_(NUMVERTICES) Vertex* Vertices, _In_ RECT* Dirty, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC1* DeskDesc, _In_ D3D11_TEXTURE2D_DESC* FullDesc, _In_ D3D11_TEXTURE2D_DESC* ThisDesc)
 {
     INT CenterX = FullDesc->Width / 2;
     INT CenterY = FullDesc->Height / 2;
@@ -299,7 +312,7 @@ void DisplayManager::SetDirtyVert(_Out_writes_(NUMVERTICES) Vertex* Vertices, _I
 //
 // Copies dirty rectangles
 //
-DUPL_RETURN DisplayManager::CopyDirty(_In_ ID3D11Texture2D* SrcSurface, _Inout_ ID3D11Texture2D* SharedSurf, _In_reads_(DirtyCount) RECT* DirtyBuffer, UINT DirtyCount, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC* DeskDesc)
+DUPL_RETURN DisplayManager::CopyDirty(_In_ ID3D11Texture2D* SrcSurface, _Inout_ ID3D11Texture2D* SharedSurf, std::span<RECT> DirtyRects, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC1* DeskDesc)
 {
     HRESULT hr;
 
@@ -346,7 +359,7 @@ DUPL_RETURN DisplayManager::CopyDirty(_In_ ID3D11Texture2D* SrcSurface, _Inout_ 
     m_DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
     // Create space for vertices for the dirty rects if the current space isn't large enough
-    UINT BytesNeeded = sizeof(Vertex) * NUMVERTICES * DirtyCount;
+    UINT BytesNeeded = sizeof(Vertex) * NUMVERTICES * DirtyRects.size();
     if (BytesNeeded > m_DirtyVertexBuffer.size())
     {
         try
@@ -361,9 +374,9 @@ DUPL_RETURN DisplayManager::CopyDirty(_In_ ID3D11Texture2D* SrcSurface, _Inout_ 
 
     // Fill them in
     Vertex* DirtyVertex = reinterpret_cast<Vertex*>(m_DirtyVertexBuffer.data());
-    for (UINT i = 0; i < DirtyCount; ++i, DirtyVertex += NUMVERTICES)
+    for (UINT i = 0; i < DirtyRects.size(); ++i, DirtyVertex += NUMVERTICES)
     {
-        SetDirtyVert(DirtyVertex, &(DirtyBuffer[i]), OffsetX, OffsetY, DeskDesc, &FullDesc, &ThisDesc);
+        SetDirtyVert(DirtyVertex, &(DirtyRects[i]), OffsetX, OffsetY, DeskDesc, &FullDesc, &ThisDesc);
     }
 
     // Create vertex buffer
@@ -395,7 +408,7 @@ DUPL_RETURN DisplayManager::CopyDirty(_In_ ID3D11Texture2D* SrcSurface, _Inout_ 
     VP.TopLeftY = 0.0f;
     m_DeviceContext->RSSetViewports(1, &VP);
 
-    m_DeviceContext->Draw(NUMVERTICES * DirtyCount, 0);
+    m_DeviceContext->Draw(NUMVERTICES * DirtyRects.size(), 0);
 
     return DUPL_RETURN_SUCCESS;
 }
@@ -413,4 +426,10 @@ void DisplayManager::CleanRefs()
     m_InputLayout = nullptr;
     m_SamplerLinear = nullptr;
     m_RTV = nullptr;
+
+    if (m_Tonemapper)
+    {
+        m_Tonemapper->Cleanup();
+        m_Tonemapper.reset();
+    }
 }

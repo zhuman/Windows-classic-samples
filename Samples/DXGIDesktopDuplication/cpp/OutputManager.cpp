@@ -78,7 +78,7 @@ DUPL_RETURN OutputManager::InitOutput(HWND Window, INT SingleOutput, _Out_ UINT*
     // Create device
     for (UINT DriverTypeIndex = 0; DriverTypeIndex < NumDriverTypes; ++DriverTypeIndex)
     {
-        hr = D3D11CreateDevice(nullptr, DriverTypes[DriverTypeIndex], nullptr, 0, FeatureLevels, NumFeatureLevels,
+        hr = D3D11CreateDevice(nullptr, DriverTypes[DriverTypeIndex], nullptr, D3D11_CREATE_DEVICE_BGRA_SUPPORT, FeatureLevels, NumFeatureLevels,
         D3D11_SDK_VERSION, m_Device.put(), &FeatureLevel, m_DeviceContext.put());
         if (SUCCEEDED(hr))
         {
@@ -127,8 +127,7 @@ DUPL_RETURN OutputManager::InitOutput(HWND Window, INT SingleOutput, _Out_ UINT*
     UINT Height = WindowRect.bottom - WindowRect.top;
 
     // Create swapchain for window
-    DXGI_SWAP_CHAIN_DESC1 SwapChainDesc;
-    RtlZeroMemory(&SwapChainDesc, sizeof(SwapChainDesc));
+    DXGI_SWAP_CHAIN_DESC1 SwapChainDesc = {};
 
     SwapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
     SwapChainDesc.BufferCount = 2;
@@ -169,8 +168,7 @@ DUPL_RETURN OutputManager::InitOutput(HWND Window, INT SingleOutput, _Out_ UINT*
     SetViewPort(Width, Height);
 
     // Create the sample state
-    D3D11_SAMPLER_DESC SampDesc;
-    RtlZeroMemory(&SampDesc, sizeof(SampDesc));
+    D3D11_SAMPLER_DESC SampDesc = {};
     SampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
     SampDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
     SampDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
@@ -185,7 +183,7 @@ DUPL_RETURN OutputManager::InitOutput(HWND Window, INT SingleOutput, _Out_ UINT*
     }
 
     // Create the blend state
-    D3D11_BLEND_DESC BlendStateDesc;
+    D3D11_BLEND_DESC BlendStateDesc = {};
     BlendStateDesc.AlphaToCoverageEnable = FALSE;
     BlendStateDesc.IndependentBlendEnable = FALSE;
     BlendStateDesc.RenderTarget[0].BlendEnable = TRUE;
@@ -252,7 +250,7 @@ DUPL_RETURN OutputManager::CreateSharedSurf(INT SingleOutput, _Out_ UINT* OutCou
         hr = S_OK;
         for (OutputCount = 0; SUCCEEDED(hr); ++OutputCount)
         {
-                DxgiOutput = nullptr;
+            DxgiOutput = nullptr;
             hr = DxgiAdapter->EnumOutputs(OutputCount, DxgiOutput.put());
             if (DxgiOutput && (hr != DXGI_ERROR_NOT_FOUND))
             {

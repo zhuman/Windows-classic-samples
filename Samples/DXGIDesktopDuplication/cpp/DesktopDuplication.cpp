@@ -167,6 +167,8 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
         return 0;
     }
 
+    winrt::init_apartment(winrt::apartment_type::single_threaded);
+
     // Event used by the threads to signal an unexpected error and we want to quit the app
     UnexpectedErrorEvent.attach(CreateEvent(nullptr, TRUE, FALSE, nullptr));
     if (!UnexpectedErrorEvent)
@@ -482,9 +484,6 @@ DUPL_RETURN DDProcCore(DuplicationThreadData* TData)
         return DUPL_RETURN_ERROR_EXPECTED;
     }
 
-    // New display manager
-    DispMgr.InitD3D(&TData->DxRes);
-
     // Obtain handle to sync shared Surface
     HRESULT hr = TData->DxRes.Device->OpenSharedResource(TData->TexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&SharedSurf));
     if (FAILED(hr))
@@ -506,9 +505,11 @@ DUPL_RETURN DDProcCore(DuplicationThreadData* TData)
     }
 
     // Get output description
-    DXGI_OUTPUT_DESC DesktopDesc;
-    RtlZeroMemory(&DesktopDesc, sizeof(DXGI_OUTPUT_DESC));
+    DXGI_OUTPUT_DESC1 DesktopDesc = {};
     DuplMgr.GetOutputDesc(&DesktopDesc);
+
+    // New display manager
+    DispMgr.InitD3D(&TData->DxRes, DesktopDesc);
 
     // Main duplication loop
     bool WaitToProcessCurrentFrame = false;

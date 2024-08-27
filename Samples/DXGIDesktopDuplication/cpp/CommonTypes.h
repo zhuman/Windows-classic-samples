@@ -9,12 +9,19 @@
 
 #include <windows.h>
 #include <d3d11.h>
-#include <dxgi1_2.h>
+#include <dxgi1_6.h>
+#include <d2d1_3.h>
+#include <d2d1_3helper.h>
+#include <d2d1effects_2.h>
 #include <sal.h>
 #include <new>
+#include <mutex>
+#include <span>
 #include <warning.h>
 #include <DirectXMath.h>
 #include <winrt\base.h>
+#include <winrt\windows.foundation.h>
+#include <winrt\windows.graphics.display.h>
 
 #include "PixelShader.h"
 #include "VertexShader.h"

@@ -21,7 +21,7 @@ public:
 	DUPL_RETURN DoneWithFrame();
 	DUPL_RETURN InitDupl(_In_ ID3D11Device* Device, UINT Output);
 	DUPL_RETURN GetMouse(_Inout_ PointerInfo* PtrInfo, _In_ DXGI_OUTDUPL_FRAME_INFO* FrameInfo, INT OffsetX, INT OffsetY);
-	void GetOutputDesc(_Out_ DXGI_OUTPUT_DESC* DescPtr);
+	void GetOutputDesc(_Out_ DXGI_OUTPUT_DESC1* DescPtr);
 
 private:
 
@@ -30,6 +30,6 @@ private:
 	winrt::com_ptr<ID3D11Texture2D> m_AcquiredDesktopImage;
 	std::vector<BYTE> m_MetaDataBuffer;
 	UINT m_OutputNumber = 0;
-    DXGI_OUTPUT_DESC m_OutputDesc = {};
+    DXGI_OUTPUT_DESC1 m_OutputDesc = {};
 	winrt::com_ptr<ID3D11Device> m_Device;
 };

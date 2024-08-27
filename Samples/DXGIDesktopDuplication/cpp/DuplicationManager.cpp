@@ -55,8 +55,6 @@ DUPL_RETURN DuplicationManager::InitDupl(_In_ ID3D11Device* Device, UINT Output)
         return ProcessFailure(m_Device.get(), L"Failed to get specified output in DUPLICATIONMANAGER", L"Error", hr, EnumOutputsExpectedErrors);
     }
 
-    DxgiOutput->GetDesc(&m_OutputDesc);
-
     // QI for Output 1
     winrt::com_ptr<IDXGIOutput1> DxgiOutput1 = DxgiOutput.try_as<IDXGIOutput1>();
     if (!DxgiOutput1)
@@ -64,8 +62,38 @@ DUPL_RETURN DuplicationManager::InitDupl(_In_ ID3D11Device* Device, UINT Output)
         return ProcessFailure(nullptr, L"Failed to QI for DxgiOutput1 in DUPLICATIONMANAGER", L"Error", E_NOTIMPL);
     }
 
-    // Create desktop duplication
-    hr = DxgiOutput1->DuplicateOutput(m_Device.get(), m_DeskDupl.put());
+    winrt::com_ptr<IDXGIOutput6> DxgiOutput6 = DxgiOutput1.try_as<IDXGIOutput6>();
+    if (DxgiOutput6)
+    {
+        // Query the newer output description structure
+        hr = DxgiOutput6->GetDesc1(&m_OutputDesc);
+        assert(SUCCEEDED(hr));
+
+        // On supported OS versions, explicitly declare support for receiving FP16 surfaces for HDR mode
+        DXGI_FORMAT SupportedFormats[] = {
+            DXGI_FORMAT_R8G8B8A8_UNORM,
+            DXGI_FORMAT_B8G8R8A8_UNORM,
+            DXGI_FORMAT_R16G16B16A16_FLOAT
+        };
+        hr = DxgiOutput6->DuplicateOutput1(m_Device.get(), 0, ARRAYSIZE(SupportedFormats), SupportedFormats, m_DeskDupl.put());
+    }
+    else
+    {
+        // Query the older output description structure and copy to the newer structure
+        DXGI_OUTPUT_DESC OutputDesc = {};
+        hr = DxgiOutput->GetDesc(&OutputDesc);
+        assert(SUCCEEDED(hr));
+
+        m_OutputDesc.AttachedToDesktop = OutputDesc.AttachedToDesktop;
+        m_OutputDesc.Rotation = OutputDesc.Rotation;
+        m_OutputDesc.DesktopCoordinates = OutputDesc.DesktopCoordinates;
+        m_OutputDesc.Monitor = OutputDesc.Monitor;
+        std::copy(std::begin(m_OutputDesc.DeviceName), std::end(m_OutputDesc.DeviceName), std::begin(OutputDesc.DeviceName));
+
+        // Create desktop duplication
+        hr = DxgiOutput1->DuplicateOutput(m_Device.get(), m_DeskDupl.put());
+    }
+
     if (FAILED(hr))
     {
         if (hr == DXGI_ERROR_NOT_CURRENTLY_AVAILABLE)
@@ -250,7 +278,7 @@ DUPL_RETURN DuplicationManager::DoneWithFrame()
 //
 // Gets output desc into DescPtr
 //
-void DuplicationManager::GetOutputDesc(_Out_ DXGI_OUTPUT_DESC* DescPtr)
+void DuplicationManager::GetOutputDesc(_Out_ DXGI_OUTPUT_DESC1* DescPtr)
 {
     *DescPtr = m_OutputDesc;
 }

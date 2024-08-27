@@ -33,7 +33,6 @@ private:
 	DUPL_RETURN MakeRTV();
 	void SetViewPort(UINT Width, UINT Height);
 	DUPL_RETURN InitShaders();
-	DUPL_RETURN InitGeometry();
 	DUPL_RETURN CreateSharedSurf(INT SingleOutput, _Out_ UINT* OutCount, _Out_ RECT* DeskBounds);
 	DUPL_RETURN DrawFrame();
 	DUPL_RETURN DrawMouse(_In_ PointerInfo* PtrInfo);
