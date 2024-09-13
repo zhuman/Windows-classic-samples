@@ -26,7 +26,7 @@ AdvancedColorTonemapper::AdvancedColorTonemapper(DXGI_OUTPUT_DESC1 outputDesc, c
     winrt::check_hresult(m_whitelevelAdjustmentEffect->SetValue<float>(D2D1_WHITELEVELADJUSTMENT_PROP_OUTPUT_WHITE_LEVEL, D2D1_SCENE_REFERRED_SDR_WHITE_LEVEL));
     winrt::check_hresult(m_whitelevelAdjustmentEffect->SetValue<float>(D2D1_WHITELEVELADJUSTMENT_PROP_INPUT_WHITE_LEVEL, D2D1_SCENE_REFERRED_SDR_WHITE_LEVEL));
 
-    // Create an HDR tonemapping effect with its output set to SDR @ 80 nits
+    // Create an HDR tonemapping effect with its output set to SDR @ standard scene-referred level (80 nits)
     winrt::check_hresult(m_d2dContext->CreateEffect(CLSID_D2D1HdrToneMap, m_hdrTonemappingEffect.put()));
     winrt::check_hresult(m_hdrTonemappingEffect->SetValue<float>(D2D1_HDRTONEMAP_PROP_OUTPUT_MAX_LUMINANCE, D2D1_SCENE_REFERRED_SDR_WHITE_LEVEL));
     winrt::check_hresult(m_hdrTonemappingEffect->SetValue<D2D1_HDRTONEMAP_DISPLAY_MODE>(D2D1_HDRTONEMAP_PROP_DISPLAY_MODE, D2D1_HDRTONEMAP_DISPLAY_MODE_SDR));
@@ -37,7 +37,7 @@ AdvancedColorTonemapper::AdvancedColorTonemapper(DXGI_OUTPUT_DESC1 outputDesc, c
     winrt::check_hresult(m_d2dContext->CreateColorContextFromDxgiColorSpace(DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709, m_srcColorContext.put()));
     winrt::check_hresult(m_d2dContext->CreateColorContextFromDxgiColorSpace(DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709, m_destColorContext.put()));
 
-    // Create an SDR whitelevel adjustment effect
+    // Create the color management effect with the color contexts
     winrt::check_hresult(m_d2dContext->CreateEffect(CLSID_D2D1ColorManagement, m_colorManagementEffect.put()));
     winrt::check_hresult(m_colorManagementEffect->SetValue(D2D1_COLORMANAGEMENT_PROP_DESTINATION_COLOR_CONTEXT, m_destColorContext.get()));
     winrt::check_hresult(m_colorManagementEffect->SetValue(D2D1_COLORMANAGEMENT_PROP_SOURCE_COLOR_CONTEXT, m_srcColorContext.get()));
@@ -51,7 +51,7 @@ AdvancedColorTonemapper::~AdvancedColorTonemapper()
 {
 }
 
-DUPL_RETURN AdvancedColorTonemapper::CopyDirtyWithTonemapping(_In_ ID3D11Texture2D* SrcSurface, _In_ ID3D11Texture2D* SharedSurf, std::span<RECT> DirtyBuffer, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC1* DeskDesc)
+DUPL_RETURN AdvancedColorTonemapper::CopyDirtyWithTonemapping(_In_ ID3D11Texture2D* SrcSurface, _In_ ID3D11Texture2D* SharedSurf, std::span<RECT> DirtyBuffers, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC1* DeskDesc)
 {
     try
     {
@@ -72,11 +72,10 @@ DUPL_RETURN AdvancedColorTonemapper::CopyDirtyWithTonemapping(_In_ ID3D11Texture
 
         // Configure the HDR tonemapping effect
         winrt::Windows::Graphics::Display::AdvancedColorInfo outputAdvancedColorInfo{ nullptr };
-        {
-            std::lock_guard<std::mutex> lock{ m_advancedColorMutex };
-            m_outputAdvancedColorInfo = m_outputDisplayInfo.GetAdvancedColorInfo();
-            outputAdvancedColorInfo = m_outputAdvancedColorInfo;
-        }
+        m_outputAdvancedColorInfo = m_outputDisplayInfo.GetAdvancedColorInfo();
+        outputAdvancedColorInfo = m_outputAdvancedColorInfo;
+
+        // CONSIDER: Consider having a message loop thread listen to DisplayInformation::AdvancedColorInfoChanged and update the resulting tonemapping pipeline only when it changes for further optimization
 
         // The first and last effects in the graph differ by advanced color mode
         winrt::com_ptr<ID2D1Image> renderImage;
@@ -125,9 +124,9 @@ DUPL_RETURN AdvancedColorTonemapper::CopyDirtyWithTonemapping(_In_ ID3D11Texture
             m_d2dContext->SetRenderingControls(D2D1_RENDERING_CONTROLS{ D2D1_BUFFER_PRECISION_16BPC_FLOAT });
             m_d2dContext->SetTarget(sharedSurfBitmap.get());
 
-            for (UINT dirtyRectIndex = 0; dirtyRectIndex < DirtyBuffer.size(); dirtyRectIndex++)
+            for (UINT dirtyRectIndex = 0; dirtyRectIndex < DirtyBuffers.size(); dirtyRectIndex++)
             {
-                RECT& dirtyRect = DirtyBuffer[dirtyRectIndex];
+                const RECT& dirtyRect = DirtyBuffers[dirtyRectIndex];
 
                 D2D1_POINT_2F targetOffset{ dirtyRect.left + OffsetX + DeskDesc->DesktopCoordinates.left, dirtyRect.top + OffsetY + DeskDesc->DesktopCoordinates.top };
                 D2D1_RECT_F imageRect{ dirtyRect.left, dirtyRect.top, dirtyRect.right, dirtyRect.bottom };

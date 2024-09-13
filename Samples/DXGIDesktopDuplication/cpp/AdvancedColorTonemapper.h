@@ -9,12 +9,11 @@ public:
     AdvancedColorTonemapper(DXGI_OUTPUT_DESC1 outputDesc, const winrt::com_ptr<ID3D11Device>& device);
     ~AdvancedColorTonemapper();
 
-    DUPL_RETURN CopyDirtyWithTonemapping(_In_ ID3D11Texture2D* SrcSurface, _In_ ID3D11Texture2D* SharedSurf, std::span<RECT> DirtyBuffer, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC1* DeskDesc);
+    DUPL_RETURN CopyDirtyWithTonemapping(_In_ ID3D11Texture2D* SrcSurface, _In_ ID3D11Texture2D* SharedSurf, std::span<RECT> DirtyBuffers, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC1* DeskDesc);
     void Cleanup();
 
 private:
     winrt::Windows::Graphics::Display::DisplayInformation m_outputDisplayInfo{ nullptr };
-    std::mutex m_advancedColorMutex;
     winrt::Windows::Graphics::Display::AdvancedColorInfo m_outputAdvancedColorInfo{ nullptr };
 
     winrt::com_ptr<ID2D1Factory7> m_d2dFactory;

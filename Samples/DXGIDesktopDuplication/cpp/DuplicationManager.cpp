@@ -7,16 +7,10 @@
 
 #include "DuplicationManager.h"
 
-//
-// Constructor sets up references / variables
-//
 DuplicationManager::DuplicationManager()
 {
 }
 
-//
-// Destructor simply calls CleanRefs to destroy everything
-//
 DuplicationManager::~DuplicationManager()
 {
 }

@@ -275,7 +275,8 @@ void DisplayManager::SetDirtyVert(_Out_writes_(NUMVERTICES) Vertex* Vertices, _I
         }
         default:
             assert(false); // drop through
-            __fallthrough;
+
+            [[fallthrough]]
         case DXGI_MODE_ROTATION_UNSPECIFIED:
         case DXGI_MODE_ROTATION_IDENTITY:
         {
