@@ -157,7 +157,8 @@ DUPL_RETURN AdvancedColorTonemapper::CopyDirtyWithTonemapping(_In_ ID3D11Texture
 
 void AdvancedColorTonemapper::Cleanup()
 {
-    m_advancedColorChangedEvent.revoke();
+    m_outputDisplayInfo = nullptr;
+    m_outputAdvancedColorInfo = nullptr;
 }
 
 

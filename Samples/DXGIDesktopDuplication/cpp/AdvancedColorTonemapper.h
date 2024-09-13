@@ -16,7 +16,6 @@ private:
     winrt::Windows::Graphics::Display::DisplayInformation m_outputDisplayInfo{ nullptr };
     std::mutex m_advancedColorMutex;
     winrt::Windows::Graphics::Display::AdvancedColorInfo m_outputAdvancedColorInfo{ nullptr };
-    winrt::Windows::Graphics::Display::DisplayInformation::AdvancedColorInfoChanged_revoker m_advancedColorChangedEvent;
 
     winrt::com_ptr<ID2D1Factory7> m_d2dFactory;
     winrt::com_ptr<ID2D1DeviceContext6> m_d2dContext;
