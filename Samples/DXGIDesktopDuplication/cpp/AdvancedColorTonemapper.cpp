@@ -9,18 +9,10 @@ static D2D1_POINT_2F ToPoint(winrt::Windows::Foundation::Point point)
 
 AdvancedColorTonemapper::AdvancedColorTonemapper(DXGI_OUTPUT_DESC1 outputDesc, const winrt::com_ptr<ID3D11Device>& device)
 {
-    // Create a DisplayInformation object to track the current display settings for the window
+    // Create a DisplayInformation object to track the current display settings for the monitor we're capturing
     auto interopFactory = winrt::get_activation_factory<winrt::Windows::Graphics::Display::DisplayInformation, IDisplayInformationStaticsInterop>();
     m_outputDisplayInfo = winrt::capture<winrt::Windows::Graphics::Display::DisplayInformation>(interopFactory.get(), &IDisplayInformationStaticsInterop::GetForMonitor, outputDesc.Monitor);
     m_outputAdvancedColorInfo = m_outputDisplayInfo.GetAdvancedColorInfo();
-
-    // Listen for any changes to output color settings
-    /*m_advancedColorChangedEvent = m_outputDisplayInfo.AdvancedColorInfoChanged(winrt::auto_revoke, [this](auto&&, auto&&)
-        {
-            // This runs on a background thread
-            std::lock_guard<std::mutex> lock{ m_advancedColorMutex };
-            m_outputAdvancedColorInfo = m_outputDisplayInfo.GetAdvancedColorInfo();
-        });*/
 
     winrt::com_ptr<IDXGIDevice> dxgiDevice = device.as<IDXGIDevice>();
 

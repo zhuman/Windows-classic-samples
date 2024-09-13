@@ -65,24 +65,24 @@ void ShowHelp();
 //
 // Class for progressive waits
 //
-typedef struct
+struct WAIT_BAND
 {
     UINT    WaitTime;
     UINT    WaitCount;
-}WAIT_BAND;
+};
 
 #define WAIT_BAND_COUNT 3
 #define WAIT_BAND_STOP 0
 
 class DYNAMIC_WAIT
 {
-    public :
-        DYNAMIC_WAIT();
-        ~DYNAMIC_WAIT();
+public :
+    DYNAMIC_WAIT();
+    ~DYNAMIC_WAIT();
 
-        void Wait();
+    void Wait();
 
-    private :
+private:
 
     static const WAIT_BAND   m_WaitBands[WAIT_BAND_COUNT];
 
@@ -484,6 +484,9 @@ DUPL_RETURN DDProcCore(DuplicationThreadData* TData)
         return DUPL_RETURN_ERROR_EXPECTED;
     }
 
+    // Set per-monitor DPI awareness which is required for the latest DuplicateOutput1 API
+    SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
     // Obtain handle to sync shared Surface
     HRESULT hr = TData->DxRes.Device->OpenSharedResource(TData->TexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&SharedSurf));
     if (FAILED(hr))
@@ -667,18 +670,7 @@ void DisplayMsg(_In_ LPCWSTR Str, _In_ LPCWSTR Title, HRESULT hr)
         return;
     }
 
-    const UINT StringLen = (UINT)(wcslen(Str) + sizeof(" with HRESULT 0x########."));
-    wchar_t* OutStr = new wchar_t[StringLen];
-    if (!OutStr)
-    {
-        return;
-    }
+    std::wstring OutStr = std::format(L"{0} with HRESULT 0x{1:X}", Str, static_cast<ULONG>(hr));
 
-    INT LenWritten = swprintf_s(OutStr, StringLen, L"%s with 0x%X.", Str, hr);
-    if (LenWritten != -1)
-    {
-        MessageBoxW(nullptr, OutStr, Title, MB_OK);
-    }
-
-    delete [] OutStr;
+    MessageBoxW(nullptr, OutStr.c_str(), Title, MB_OK);
 }

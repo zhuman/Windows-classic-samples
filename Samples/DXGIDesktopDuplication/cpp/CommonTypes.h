@@ -26,6 +26,8 @@
 #include "PixelShader.h"
 #include "VertexShader.h"
 
+DEFINE_ENUM_FLAG_OPERATORS(D3D11_CREATE_DEVICE_FLAG);
+
 #define NUMVERTICES 6
 #define BPP         4
 

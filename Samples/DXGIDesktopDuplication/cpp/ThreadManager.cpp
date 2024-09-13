@@ -103,11 +103,15 @@ DUPL_RETURN ThreadManager::InitializeDx(_Inout_ DxResources* Data)
     UINT NumFeatureLevels = ARRAYSIZE(FeatureLevels);
 
     D3D_FEATURE_LEVEL FeatureLevel;
+    D3D11_CREATE_DEVICE_FLAG DeviceFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+#ifdef _DEBUG
+    DeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
+#endif
 
     // Create device
     for (UINT DriverTypeIndex = 0; DriverTypeIndex < NumDriverTypes; ++DriverTypeIndex)
     {
-        hr = D3D11CreateDevice(nullptr, DriverTypes[DriverTypeIndex], nullptr, D3D11_CREATE_DEVICE_BGRA_SUPPORT, FeatureLevels, NumFeatureLevels,
+        hr = D3D11CreateDevice(nullptr, DriverTypes[DriverTypeIndex], nullptr, DeviceFlags, FeatureLevels, NumFeatureLevels,
                                 D3D11_SDK_VERSION, Data->Device.put(), &FeatureLevel, Data->Context.put());
         if (SUCCEEDED(hr))
         {
